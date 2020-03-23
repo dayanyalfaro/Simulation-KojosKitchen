@@ -2,17 +2,19 @@ from random import uniform
 import math
 
 
-def exponential(lamda=1/2):
+def exponential(lamda=1/4):
     u = uniform(0, 1)
     e = - (1 / lamda) * math.log(u)
     return e
 
 
 class Customer():
-    def __init__(self):
+    def __init__(self, id):
+        self.id = id
         self.arrive = None
         self.departure = None
         self.attended = None
+        self.order = 0 if uniform(0, 1) > 1/2 else 1  # 0: sushi # 1: sandwich
 
     def arrive(self):
         return self.arrive
@@ -44,9 +46,8 @@ def prepare_sushi():
     return uniform(5, 8)
 
 
-def attend_customer_time():
-    x = uniform(0, 1)
-    if x < 1 / 2:
+def attend_customer_time(order):
+    if order:
         return prepare_sandwich()
     return prepare_sushi()
 
@@ -77,10 +78,12 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
     number_customers = 0
     workers = [0 for _ in range(n)]  # 0-> empty i-> busy attending customer i
     service_time = [math.inf for _ in range(n)]
+    attended_by_worker = [0 for _ in range(n)]
 
     if rush_hour_worker:
         workers.append(math.inf)  # it is gonna be unavailable until rush hours
         service_time.append(math.inf)
+        attended_by_worker.append(0)
 
     customers = {}
     customers_to_attend = []
@@ -89,11 +92,15 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
 
     while True:
         if rush_hour_worker:
-            if is_rush_hour(elapsed_time):
+            rush_hour = is_rush_hour(elapsed_time)
+            # is rush hour and extra worker is not working
+            rush_hour_start = rush_hour and math.isinf(workers[-1])
+            # rush hour ended and extra worker is empty
+            rush_hour_finish = not rush_hour and workers[-1] == 0
+            if rush_hour_start:
                 # activate rush hour worker
-                if math.isinf(workers[-1]):
-                    workers[-1] = 0
-            elif workers[-1] == 0:
+                workers[-1] = 0
+            if rush_hour_finish:
                 # deactivate rush hour worker
                 workers[-1] = math.inf
                 service_time[-1] = math.inf
@@ -103,7 +110,7 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
             elapsed_time = t_a
             number_arrives += 1
             number_customers += 1
-            customer = customers[number_arrives] = Customer()
+            customer = customers[number_arrives] = Customer(number_arrives)
             customer.set_arrive(t_a)
             t_a += exponential()
 
@@ -114,7 +121,8 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
                 customer.set_attended(elapsed_time)
                 workers[free_worker] = number_arrives
                 service_time[free_worker] = elapsed_time + \
-                    attend_customer_time()
+                    attend_customer_time(customer.order)
+                attended_by_worker[free_worker] += 1
             else:
                 customers_to_attend.append(number_arrives)
         else:
@@ -135,7 +143,9 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
                 customer_id = customers_to_attend.pop(0)
                 workers[i] = customer_id
                 customers[customer_id].set_attended(t_i)
-                service_time[i] = elapsed_time + attend_customer_time()
+                service_time[i] = elapsed_time + \
+                    attend_customer_time(customers[customer_id].order)
+                attended_by_worker[i] += 1
             else:
                 # release worker
                 workers[i] = 0
@@ -144,16 +154,26 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
     return customers
 
 
-customers = simulate_day_in_Kojos_Kitchen(660, rush_hour_worker=False)
-customers_extra = simulate_day_in_Kojos_Kitchen(660, rush_hour_worker=True)
+def estimate_customers_overfive(n, rush_hour_worker):
+    total_overfive = 0
+    total_customers = 0
+    for i in range(n):
+        customers = simulate_day_in_Kojos_Kitchen(660, 2, rush_hour_worker)
+        overfive = [1 if (customer.attended - customer.arrive) > 5 else 0
+                    for customer in customers.values()]
+
+        total_overfive += sum(overfive)
+        total_customers += len(customers)
+    customers = total_customers / n
+    overfive = total_overfive / n
+    percent = (overfive / customers) * 100
+    return percent
 
 
-a = [(customer.departure - customer.attended)
-     for customer in customers.values()]
-b = [(customer.departure - customer.attended)
-     for customer in customers_extra.values()]
 print("Sin extra:")
-print(a)
+print(estimate_customers_overfive(1000, False))
+# print(attended)
 print("------------------------------------------------------")
 print("Con extra:")
-print(b)
+# print(attended_extra)
+print(estimate_customers_overfive(1000, True))
