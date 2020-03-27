@@ -72,7 +72,7 @@ def is_rush_hour(t):
     return first or second
 
 
-def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
+def simulate_day_in_Kojos_Kitchen(duration, lamda, n=2, rush_hour_worker=False):
     elapsed_time = 0
     number_arrives = 0
     number_customers = 0
@@ -88,7 +88,7 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
     customers = {}
     customers_to_attend = []
 
-    t_a = exponential()
+    t_a = exponential(lamda)
 
     while True:
         if rush_hour_worker:
@@ -112,7 +112,7 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
             number_customers += 1
             customer = customers[number_arrives] = Customer(number_arrives)
             customer.set_arrive(t_a)
-            t_a += exponential()
+            t_a += exponential(lamda)
 
             free_worker = get_free_worker(workers)
 
@@ -154,11 +154,11 @@ def simulate_day_in_Kojos_Kitchen(duration, n=2, rush_hour_worker=False):
     return customers
 
 
-def estimate_customers_overfive(n, rush_hour_worker):
+def estimate_customers_overfive(n,lamda, rush_hour_worker):
     total_overfive = 0
     total_customers = 0
-    for i in range(n):
-        customers = simulate_day_in_Kojos_Kitchen(660, 2, rush_hour_worker)
+    for _ in range(n):
+        customers = simulate_day_in_Kojos_Kitchen(660,lamda, 2, rush_hour_worker)
         overfive = [1 if (customer.attended - customer.arrive) > 5 else 0
                     for customer in customers.values()]
 
@@ -169,11 +169,9 @@ def estimate_customers_overfive(n, rush_hour_worker):
     percent = (overfive / customers) * 100
     return percent
 
-
-print("Sin extra:")
-print(estimate_customers_overfive(1000, False))
-# print(attended)
-print("------------------------------------------------------")
-print("Con extra:")
-# print(attended_extra)
-print(estimate_customers_overfive(1000, True))
+for lamda in [1/2,1/3,1/4,1/5,1/6,1/7,1/8]:
+    print('lambda: ', lamda)
+    print("2 Trabajadores: ", estimate_customers_overfive(1000,lamda, False), "%")
+    print("2 Trabajadores y Extra: ",
+          estimate_customers_overfive(1000, lamda, True), "%")
+    print("------------------------------------------------------")
